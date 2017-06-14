@@ -1,0 +1,724 @@
+本文介绍在Java Web项目中spring和Shiro集成，实现权限控制管理，主要包括以下步骤：
+
+新建Maven项目
+在Spring中集成Shiro
+Realm实现
+Controller权限控制
+JSP权限控制
+实例源码
+新建Maven项目
+
+1.新建Maven项目，增加shiro pom依赖： 
+pom.xml
+
+<properties>
+    <shiro.version>1.2.3</shiro.version>
+</properties>
+<!-- shiro -->
+<dependency>
+    <groupId>org.apache.shiro</groupId>
+    <artifactId>shiro-spring</artifactId>
+    <version>${shiro.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.shiro</groupId>
+    <artifactId>shiro-ehcache</artifactId>
+    <version>${shiro.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.shiro</groupId>
+    <artifactId>shiro-core</artifactId>
+    <version>${shiro.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.shiro</groupId>
+    <artifactId>shiro-web</artifactId>
+    <version>${shiro.version}</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.shiro</groupId>
+    <artifactId>shiro-quartz</artifactId>
+    <version>${shiro.version}</version>
+</dependency>
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+在Spring中集成Shiro
+
+1.Shiro过滤器配置 
+web.xml
+
+<!-- shiro 安全过滤器 -->
+<filter>
+    <filter-name>shiroFilter</filter-name>
+    <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+    <async-supported>true</async-supported>
+    <init-param>
+        <param-name>targetFilterLifecycle</param-name>
+        <param-value>true</param-value>
+    </init-param>
+</filter>
+<filter-mapping>
+    <filter-name>shiroFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+</filter-mapping>
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+2.Spring集成Shiro配置 
+ApplicationContext-Shiro.xml
+
+<bean id="shiroFilter" class="org.apache.shiro.spring.web.ShiroFilterFactoryBean">
+   <property name="securityManager" ref="securityManager"/>
+   <property name="loginUrl" value="/page/login"/>
+   <property name="unauthorizedUrl" value="/page/401"/>
+   <property name="filterChainDefinitions">
+       <value>
+           <!-- 静态资源允许访问 -->
+           /app/** = anon
+           /assets/** = anon
+           <!-- 登录页允许访问 -->
+           /user/login = anon
+           <!-- 其他资源需要认证 -->
+           /** = authc
+       </value>
+   </property>
+</bean>
+<!-- 缓存管理器 使用Ehcache实现 -->
+ <bean id="shiroEhcacheManager" class="org.apache.shiro.cache.ehcache.EhCacheManager">
+     <property name="cacheManagerConfigFile" value="classpath:ehcache-shiro.xml"/>
+ </bean>
+
+ <!-- 会话DAO -->
+ <bean id="sessionDAO" class="org.apache.shiro.session.mgt.eis.MemorySessionDAO"/>
+
+ <!-- 会话管理器 -->
+ <bean id="sessionManager" class="org.apache.shiro.web.session.mgt.DefaultWebSessionManager">
+     <property name="sessionDAO" ref="sessionDAO"/>
+ </bean>
+
+ <!-- 安全管理器 -->
+ <bean id="securityManager" class="org.apache.shiro.web.mgt.DefaultWebSecurityManager">
+     <property name="realms">
+         <list>
+             <ref bean="securityRealm"/>
+         </list>
+     </property>
+     <!-- cacheManager,集合spring缓存工厂 -->
+     <!-- <property name="cacheManager" ref="shiroEhcacheManager" /> -->
+     <!-- <property name="sessionManager" ref="sessionManager" /> -->
+ </bean>
+
+<!-- Shiro生命周期处理器 -->
+<bean id="lifecycleBeanPostProcessor" class="org.apache.shiro.spring.LifecycleBeanPostProcessor"/>
+
+<!-- Shiro Spring AOP权限注解 , 需要设置<aop:config proxy-target-class="true"> -->
+<bean class="org.apache.shiro.spring.security.interceptor.AuthorizationAttributeSourceAdvisor">  
+  <property name="securityManager" ref="securityManager"/>  
+</bean>
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+3.配置Shiro Ehcache缓存 
+eache-shiro.xml
+
+<?xml version="1.0" encoding="UTF-8"?>
+<ehcache updateCheck="false" name="shiroCache">
+    <defaultCache maxElementsInMemory="10000" eternal="false"
+        timeToIdleSeconds="120" timeToLiveSeconds="120" overflowToDisk="false"
+        diskPersistent="false" diskExpiryThreadIntervalSeconds="120" />
+</ehcache>
+1
+2
+3
+4
+5
+6
+1
+2
+3
+4
+5
+6
+Realm实现
+
+认证实现
+
+Shiro权限认证，最终交由Realm来执行，会调用doGetAuthenticationInfo(AuthenticationToken token)方法，该方法主要完成以下操作： 
+    1 检查提交的进行认证的令牌信息 
+    2 根据令牌信息从数据源(通常为数据库)中获取用户信息 
+    3 对用户信息进行匹配验证。 
+    4 验证通过将返回一个封装了用户信息的AuthenticationInfo实例。 
+    5 验证失败则抛出AuthenticationException异常信息。
+
+新建SecurityReaml类
+
+/**
+ * 登陆验证
+ */
+@Override
+protected AuthenticationInfo doGetAuthenticationInfo(AuthenticationToken token) throws AuthenticationException {
+    String username = String.valueOf(token.getPrincipal());
+       String password = new String((char[]) token.getCredentials());
+       // 通过数据库进行验证
+       User authentication = userService.authentication(new User(username, password));
+       if (authentication == null) {
+           throw new AuthenticationException("用户名或密码错误.");
+       }
+       SimpleAuthenticationInfo authenticationInfo = new SimpleAuthenticationInfo(username, password, getName());
+       return authenticationInfo;
+}
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+授权实现
+
+Shiro的授权，是通过Realm的doGetAuthorizationInfo(PrincipalCollection principals)方法完成
+
+/**
+* 权限检查
+*/
+@Override
+protected AuthorizationInfo doGetAuthorizationInfo(PrincipalCollection principals) {
+   SimpleAuthorizationInfo authorizationInfo = new SimpleAuthorizationInfo();
+   String username = String.valueOf(principals.getPrimaryPrincipal());
+
+   User user = userService.selectByUsername(username);//获取用户，拿到角色权限信息
+   authorizationInfo.addRole(RoleSign.ADMIN);//添加admin权限
+   authorizationInfo.addStringPermission(PermissionSign.USER_CREATE);//添加创建用户user:create权限
+    //TODO 在这里添加角色权限，从数据库查询
+    // final List<Role> roleInfos = roleService.selectRolesByUserId(user.getId());
+    // for (Role role : roleInfos) {
+    // 添加角色
+    //authorizationInfo.addRole(role.getRoleSign());
+    //
+    //final List<Permission> permissions = permissionService.selectPermissionsByRoleId(role.getId());
+    //for (Permission permission : permissions) {            
+        //authorizationInfo.addStringPermission(permission.getPermissionSign());
+    // }
+    //}
+   return authorizationInfo;
+}
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+注意：Shiro权限控制是依赖项目自身的权限管理，Shiro本身不提供权限管理功能
+Controller权限控制
+
+登录 
+在Controller控制层中，完成登录验证
+
+@RequestMapping(value="/login",method=RequestMethod.POST)
+public String login(@Valid User user,Model model,HttpServletRequest request){
+    try {
+        // 得到当前Subject，即"用户"
+        Subject subject = SecurityUtils.getSubject();
+        if (subject.isAuthenticated()) {
+            return "redirect:/index";
+        }
+        // 身份验证
+        subject.login(new UsernamePasswordToken(user.getUname(), user.getPwd()));
+        User authUser = userService.selectByUsername(user.getUname());
+        request.getSession().setAttribute(Constants.SESSION_USER, authUser);
+    } catch (AuthenticationException e) {
+        // 身份验证失败
+        model.addAttribute("error", "用户名或密码错误 ！");
+        return "login";
+    }
+    return "redirect:/index";
+}
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+登出
+
+/**
+ * 用户登出
+ * 
+ * @param session
+ * @return
+ */
+ @RequestMapping(value = "/logout", method = RequestMethod.GET)
+ public String logout(HttpSession session) {
+     session.removeAttribute(Constants.SESSION_USER);
+     // 登出操作
+     Subject subject = SecurityUtils.getSubject();
+     subject.logout();
+     return "login";
+ }
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+角色权限验证 
+通过@RequiresRoles注解验证
+
+@RequestMapping(value="/admin")
+@ResponseBody
+@RequiresRoles(value=RoleSign.ADMIN)
+public String admin(){
+    return "拥有admin角色";
+}
+1
+2
+3
+4
+5
+6
+1
+2
+3
+4
+5
+6
+操作权限验证 
+通过@RequiresPermissions验证
+
+@RequestMapping(value="/create")
+@ResponseBody
+@RequiresPermissions(value=PermissionSign.USER_CREATE)
+public String create(){
+    return "拥有创建用户user:create权限";
+}
+1
+2
+3
+4
+5
+6
+1
+2
+3
+4
+5
+6
+JSP权限控制
+
+导入taglib
+
+<%@taglib prefix="shiro" uri="http://shiro.apache.org/tags" %>  
+1
+1
+guest标签 
+用户还没有身份验证
+
+<shiro:guest>  
+欢迎访问，<a href="${pageContext.request.contextPath}/login">登录</a>  
+</shiro:guest>   
+1
+2
+3
+1
+2
+3
+user标签 
+用户已经身份验证/记住我登录后显示相应的信息
+
+<shiro:user>  
+欢迎[<shiro:principal/>]，<a href="${pageContext.request.contextPath}/logout">退出</a>  
+</shiro:user>   
+1
+2
+3
+1
+2
+3
+authenticated标签 
+户已经身份验证通过，即Subject.login登录成功，不是记住我登录的
+
+<shiro:authenticated>  
+    用户[<shiro:principal/>]已身份验证通过  
+</shiro:authenticated> 
+1
+2
+3
+1
+2
+3
+notAuthenticated标签 
+用户已经身份验证通过，即没有调用Subject.login进行登录，包括记住我自动登录的也属于未进行身份验证。
+
+<shiro:notAuthenticated>
+    未身份验证（包括记住我）
+</shiro:notAuthenticated>
+1
+2
+3
+1
+2
+3
+principal标签 
+显示用户身份信息，默认调用Subject.getPrincipal()获取，即Primary Principal。
+
+<shiro: principal/>
+1
+1
+Subject.getPrincipals().oneByType(String.class)。
+
+<shiro:principal type="java.lang.String"/> 
+1
+1
+获取用户名((User)Subject.getPrincipals()).getUsername()。
+
+<shiro:principal property="username"/>
+1
+1
+hasRole标签
+
+<shiro:hasRole name="admin">  
+    用户[<shiro:principal/>]拥有角色admin<br/>  
+</shiro:hasRole>   
+1
+2
+3
+1
+2
+3
+hasAnyRoles标签 
+包含任一权限
+
+<shiro:hasAnyRoles name="admin,user">  
+    用户[<shiro:principal/>]拥有角色admin或user<br/>  
+</shiro:hasAnyRoles>
+1
+2
+3
+1
+2
+3
+lacksRole标签 
+如果当前Subject没有角色将显示body体内容
+
+<shiro:lacksRole name="test">  
+    用户[<shiro:principal/>]没有角色abc<br/>  
+</shiro:lacksRole> 
+1
+2
+3
+1
+2
+3
+hasPermission标签 
+如果当前Subject有权限将显示body体内容
+
+<shiro:hasPermission name="user:create">  
+    用户[<shiro:principal/>]拥有权限user:create<br/>  
+</shiro:hasPermission>   
+1
+2
+3
+1
+2
+3
+lacksPermission标签 
+如果当前Subject没有权限将显示body体内容
+
+<shiro:lacksPermission name="org:create">  
+    用户[<shiro:principal/>]没有权限org:create<br/>  
+</shiro:lacksPermission>
