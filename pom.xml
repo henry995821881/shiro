@@ -13,6 +13,14 @@
     </properties>
     
 	<dependencies>
+		
+	  <dependency>
+			<groupId>javax.servlet</groupId>
+			<artifactId>javax.servlet-api</artifactId>
+             <version>3.1.0</version>
+			<scope>provided</scope>
+		</dependency>
+	
 
 		<dependency>
 			<groupId>org.apache.commons</groupId>
@@ -122,7 +130,7 @@
 			<groupId>com.alibaba</groupId>
 			<artifactId>dubbo</artifactId>
 			<version>2.8.4</version>
-		</dependency>
+		</dependency> 
 		<dependency>
 			<groupId>org.apache.zookeeper</groupId>
 			<artifactId>zookeeper</artifactId>
@@ -315,7 +323,7 @@
 			<artifactId>jasypt-spring3</artifactId>
 			<version>1.9.2</version>
 		</dependency>
-		
+	
 
 	</dependencies>
 	
@@ -330,6 +338,21 @@
 					<encoding>UTF-8</encoding>
 				</configuration>
 			</plugin>
+			
+			 <plugin>
+                <groupId>org.apache.tomcat.maven</groupId>
+                <artifactId>tomcat7-maven-plugin</artifactId>
+                <version>2.1</version>
+                <configuration>
+                    <port>8080</port>
+                    <path>/</path>
+                    <uriEncoding>UTF-8</uriEncoding>
+                    <finalName>sys_basic</finalName>
+                    <server>tomcat7</server>
+                </configuration>
+            </plugin>
+			
+			
 		</plugins>
 	</build>
 </project>
